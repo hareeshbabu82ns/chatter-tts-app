@@ -1,15 +1,13 @@
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import torch
 import numpy as np
 import io
-import tempfile
 import os
 import random
 from typing import Optional
-import librosa
 import soundfile as sf
 from pathlib import Path
 import shutil
@@ -71,6 +69,7 @@ async def root():
         "version": "1.0.0",
         "device": DEVICE,
         "endpoints": {
+            "demo": "/api_demo.html - Interactive API demo page",
             "generate": "/generate - Generate TTS audio",
             "generate_stream": "/generate/stream - Generate and stream TTS audio",
             "health": "/health - Health check",
@@ -83,6 +82,18 @@ async def root():
             "output_audio_download": "/output-audio/download/{filename} - Download generated output audio file"
         }
     }
+
+@app.get("/api_demo.html", response_class=HTMLResponse)
+async def api_demo():
+    """Serve the API demo HTML page"""
+    try:
+        with open("api_demo.html", "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Demo page not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error serving demo page: {str(e)}")
 
 @app.get("/health")
 async def health_check():
