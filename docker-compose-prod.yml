@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   chatter-tts:
-    image: ghcr.io/hareeshbabu82ns/chatter-tts:latest
+    image: ghcr.io/hareeshbabu82ns/chatter-tts-app:latest
     ports:
       - "8000:8000"
     volumes:
