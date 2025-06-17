@@ -74,7 +74,10 @@ async def root():
             "generate": "/generate - Generate TTS audio",
             "generate_stream": "/generate/stream - Generate and stream TTS audio",
             "health": "/health - Health check",
-            "model_info": "/model/info - Model information"
+            "model_info": "/model/info - Model information",
+            "reference_audio_list": "/reference-audio/list - List reference audio files",
+            "reference_audio_upload": "/reference-audio/upload - Upload reference audio file",
+            "reference_audio_delete": "/reference-audio/delete/{filename} - Delete reference audio file"
         }
     }
 
@@ -104,6 +107,7 @@ async def model_info():
 async def generate_tts(
     text: str = Form(..., description="Text to synthesize (max 300 chars)"),
     reference_audio: Optional[UploadFile] = File(None, description="Reference audio file for voice cloning"),
+    reference_audio_file: Optional[str] = Form(None, description="Existing reference audio filename from ./data/ref/"),
     exaggeration: float = Form(0.5, ge=0.25, le=2.0, description="Emotion exaggeration (0.25-2.0, neutral=0.5)"),
     temperature: float = Form(0.8, ge=0.05, le=5.0, description="Sampling temperature"),
     cfg_weight: float = Form(0.5, ge=0.0, le=1.0, description="CFG/Pace control"),
@@ -131,6 +135,12 @@ async def generate_tts(
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Error processing reference audio: {str(e)}")
+        elif reference_audio_file:
+            # Use existing reference audio file
+            ref_path = REF_AUDIO_DIR / reference_audio_file
+            if not ref_path.exists():
+                raise HTTPException(status_code=404, detail=f"Reference audio file not found: {reference_audio_file}")
+            audio_prompt_path = str(ref_path)
         
         # Generate audio
         wav = tts_model.generate(
@@ -197,6 +207,7 @@ async def generate_tts(
 async def generate_tts_stream(
     text: str = Form(..., description="Text to synthesize (max 300 chars)"),
     reference_audio: Optional[UploadFile] = File(None, description="Reference audio file for voice cloning"),
+    reference_audio_file: Optional[str] = Form(None, description="Existing reference audio filename from ./data/ref/"),
     exaggeration: float = Form(0.5, ge=0.25, le=2.0, description="Emotion exaggeration (0.25-2.0, neutral=0.5)"),
     temperature: float = Form(0.8, ge=0.05, le=5.0, description="Sampling temperature"),
     cfg_weight: float = Form(0.5, ge=0.0, le=1.0, description="CFG/Pace control"),
@@ -223,6 +234,12 @@ async def generate_tts_stream(
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Error processing reference audio: {str(e)}")
+        elif reference_audio_file:
+            # Use existing reference audio file
+            ref_path = REF_AUDIO_DIR / reference_audio_file
+            if not ref_path.exists():
+                raise HTTPException(status_code=404, detail=f"Reference audio file not found: {reference_audio_file}")
+            audio_prompt_path = str(ref_path)
         
         # Generate audio
         wav = tts_model.generate(
@@ -271,6 +288,7 @@ async def generate_tts_stream(
 async def generate_tts_json(
     text: str = Form(..., description="Text to synthesize (max 300 chars)"),
     reference_audio: Optional[UploadFile] = File(None, description="Reference audio file for voice cloning"),
+    reference_audio_file: Optional[str] = Form(None, description="Existing reference audio filename from ./data/ref/"),
     exaggeration: float = Form(0.5, ge=0.25, le=2.0, description="Emotion exaggeration (0.25-2.0, neutral=0.5)"),
     temperature: float = Form(0.8, ge=0.05, le=5.0, description="Sampling temperature"),
     cfg_weight: float = Form(0.5, ge=0.0, le=1.0, description="CFG/Pace control"),
@@ -299,6 +317,12 @@ async def generate_tts_json(
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Error processing reference audio: {str(e)}")
+        elif reference_audio_file:
+            # Use existing reference audio file
+            ref_path = REF_AUDIO_DIR / reference_audio_file
+            if not ref_path.exists():
+                raise HTTPException(status_code=404, detail=f"Reference audio file not found: {reference_audio_file}")
+            audio_prompt_path = str(ref_path)
         
         # Generate audio
         wav = tts_model.generate(
@@ -353,6 +377,97 @@ async def generate_tts_json(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating audio: {str(e)}")
+
+@app.get("/reference-audio/list")
+async def list_reference_audio():
+    """List available reference audio files"""
+    try:
+        ref_files = []
+        if REF_AUDIO_DIR.exists():
+            for file_path in REF_AUDIO_DIR.iterdir():
+                if file_path.is_file() and file_path.suffix.lower() in ['.wav', '.mp3', '.flac', '.ogg', '.m4a']:
+                    # Get file info
+                    file_stat = file_path.stat()
+                    ref_files.append({
+                        "filename": file_path.name,
+                        "path": str(file_path),
+                        "size": file_stat.st_size,
+                        "modified": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                    })
+        
+        return {
+            "reference_files": sorted(ref_files, key=lambda x: x["filename"]),
+            "count": len(ref_files)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing reference audio files: {str(e)}")
+
+@app.post("/reference-audio/upload")
+async def upload_reference_audio(
+    file: UploadFile = File(..., description="Reference audio file to upload")
+):
+    """Upload a new reference audio file"""
+    try:
+        # Validate file type
+        if not file.filename.lower().endswith(('.wav', '.mp3', '.flac', '.ogg', '.m4a')):
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid file type. Supported formats: WAV, MP3, FLAC, OGG, M4A"
+            )
+        
+        # Create unique filename to avoid conflicts
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name = Path(file.filename).stem
+        extension = Path(file.filename).suffix
+        unique_filename = f"{base_name}_{timestamp}{extension}"
+        
+        # Save file
+        file_path = REF_AUDIO_DIR / unique_filename
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Get file info
+        file_stat = file_path.stat()
+        
+        return {
+            "message": "Reference audio uploaded successfully",
+            "filename": unique_filename,
+            "path": str(file_path),
+            "size": file_stat.st_size,
+            "original_filename": file.filename
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading reference audio: {str(e)}")
+
+@app.delete("/reference-audio/delete/{filename}")
+async def delete_reference_audio(filename: str):
+    """Delete a reference audio file"""
+    try:
+        # Validate filename to prevent path traversal attacks
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        file_path = REF_AUDIO_DIR / filename
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"Reference audio file not found: {filename}")
+        
+        if not file_path.is_file():
+            raise HTTPException(status_code=400, detail="Not a valid file")
+        
+        # Delete the file
+        file_path.unlink()
+        
+        return {
+            "message": "Reference audio deleted successfully",
+            "filename": filename
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting reference audio: {str(e)}")
 
 # Helper function for robust audio handling
 async def save_uploaded_audio(reference_audio: UploadFile) -> str:

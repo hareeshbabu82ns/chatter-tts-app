@@ -192,9 +192,30 @@
       </div>
 
       <div class="form-group">
-        <label for="referenceAudio">Reference Audio (optional, for voice cloning):</label>
+        <label for="existingReference">Reference Audio (for voice cloning):</label>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <select id="existingReference" name="reference_audio_file" style="flex: 1;">
+            <option value="">Choose existing reference audio...</option>
+          </select>
+          <button type="button" class="btn-secondary" onclick="deleteReferenceAudio()"
+            style="padding: 8px 12px; font-size: 12px; white-space: nowrap;">
+            🗑️ Delete
+          </button>
+        </div>
+        <div class="file-info">Select from available reference audio files, or upload a new one below</div>
+      </div>
+
+      <div class="form-group">
+        <label for="referenceAudio">Upload New Reference Audio:</label>
         <input type="file" id="referenceAudio" name="reference_audio" accept="audio/*">
-        <div class="file-info">Upload an audio file to clone its voice characteristics</div>
+        <div class="file-info">
+          Upload an audio file to clone its voice characteristics
+          <br>
+          <button type="button" class="btn-secondary" onclick="uploadReferenceAudio()"
+            style="margin-top: 5px; font-size: 12px; padding: 5px 10px;">
+            � Save to Reference Library
+          </button>
+        </div>
       </div>
 
       <div class="form-group">
@@ -336,13 +357,13 @@
       const form = document.getElementById( 'ttsForm' );
       const formData = new FormData();
 
-      // Add all form fields except reference_audio
+      // Add all form fields except reference audio related ones
       const formElements = form.elements;
       for ( let i = 0; i < formElements.length; i++ ) {
         const element = formElements[ i ];
-        if ( element.name && element.name !== 'reference_audio' ) {
+        if ( element.name && element.name !== 'reference_audio' && element.name !== 'reference_audio_file' ) {
           if ( element.type === 'file' ) {
-            // Skip file inputs that aren't reference_audio
+            // Skip file inputs that aren't for reference audio
             continue;
           } else {
             formData.append( element.name, element.value );
@@ -350,10 +371,15 @@
         }
       }
 
-      // Only add reference_audio if a file is actually selected
+      // Handle reference audio - check both dropdown and upload
+      const existingReference = document.getElementById( 'existingReference' ).value;
       const referenceAudioInput = document.getElementById( 'referenceAudio' );
+
+      // Priority: uploaded file takes precedence over selected existing file
       if ( referenceAudioInput.files.length > 0 ) {
         formData.append( 'reference_audio', referenceAudioInput.files[ 0 ] );
+      } else if ( existingReference ) {
+        formData.append( 'reference_audio_file', existingReference );
       }
 
       const text = formData.get( 'text' );
@@ -444,6 +470,8 @@
         if ( response.ok ) {
           showStatus( 'API is ready!', 'success' );
           setTimeout( hideStatus, 3000 );
+          // Load reference audio files
+          await loadReferenceAudioFiles();
         } else {
           showStatus( 'API is not responding properly.', 'error' );
         }
@@ -451,6 +479,117 @@
         showStatus( 'Cannot connect to API. Make sure the server is running on http://localhost:8000', 'error' );
       }
     } );
+
+    // Load reference audio files
+    async function loadReferenceAudioFiles() {
+      try {
+        const response = await fetch( `${API_BASE_URL}/reference-audio/list` );
+        if ( response.ok ) {
+          const data = await response.json();
+          const select = document.getElementById( 'existingReference' );
+          select.innerHTML = '<option value="">Select a reference audio file...</option>';
+
+          data.reference_files.forEach( file => {
+            const option = document.createElement( 'option' );
+            option.value = file.filename;
+            option.textContent = `${file.filename} (${formatFileSize( file.size )})`;
+            select.appendChild( option );
+          } );
+        }
+      } catch ( error ) {
+        console.error( 'Error loading reference audio files:', error );
+      }
+    }
+
+    // Format file size
+    function formatFileSize( bytes ) {
+      if ( bytes === 0 ) return '0 Bytes';
+      const k = 1024;
+      const sizes = [ 'Bytes', 'KB', 'MB', 'GB' ];
+      const i = Math.floor( Math.log( bytes ) / Math.log( k ) );
+      return parseFloat( ( bytes / Math.pow( k, i ) ).toFixed( 2 ) ) + ' ' + sizes[ i ];
+    }
+
+    // Upload reference audio
+    async function uploadReferenceAudio() {
+      const fileInput = document.getElementById( 'referenceAudio' );
+      if ( !fileInput.files.length ) {
+        showStatus( 'Please select a file to upload first.', 'error' );
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append( 'file', fileInput.files[ 0 ] );
+
+      try {
+        showStatus( 'Uploading reference audio...', 'loading' );
+
+        const response = await fetch( `${API_BASE_URL}/reference-audio/upload`, {
+          method: 'POST',
+          body: formData
+        } );
+
+        if ( response.ok ) {
+          const result = await response.json();
+          showStatus( `Reference audio uploaded successfully as: ${result.filename}`, 'success' );
+
+          // Reload reference audio list
+          await loadReferenceAudioFiles();
+
+          // Select the newly uploaded file in the dropdown
+          document.getElementById( 'existingReference' ).value = result.filename;
+
+        } else {
+          const errorText = await response.text();
+          throw new Error( `HTTP ${response.status}: ${errorText}` );
+        }
+      } catch ( error ) {
+        console.error( 'Error uploading reference audio:', error );
+        showStatus( `Error uploading reference audio: ${error.message}`, 'error' );
+      }
+    }
+
+    // Delete reference audio
+    async function deleteReferenceAudio() {
+      const select = document.getElementById( 'existingReference' );
+      const selectedFile = select.value;
+
+      if ( !selectedFile ) {
+        showStatus( 'Please select a reference audio file to delete.', 'error' );
+        return;
+      }
+
+      // Confirm deletion
+      if ( !confirm( `Are you sure you want to delete "${selectedFile}"? This action cannot be undone.` ) ) {
+        return;
+      }
+
+      try {
+        showStatus( 'Deleting reference audio...', 'loading' );
+
+        const response = await fetch( `${API_BASE_URL}/reference-audio/delete/${encodeURIComponent( selectedFile )}`, {
+          method: 'DELETE'
+        } );
+
+        if ( response.ok ) {
+          const result = await response.json();
+          showStatus( `Reference audio deleted successfully: ${selectedFile}`, 'success' );
+
+          // Reload reference audio list
+          await loadReferenceAudioFiles();
+
+          // Clear selection
+          select.value = '';
+
+        } else {
+          const errorText = await response.text();
+          throw new Error( `HTTP ${response.status}: ${errorText}` );
+        }
+      } catch ( error ) {
+        console.error( 'Error deleting reference audio:', error );
+        showStatus( `Error deleting reference audio: ${error.message}`, 'error' );
+      }
+    }
 
     // Initialize character count
     document.getElementById( 'charCount' ).textContent = document.getElementById( 'text' ).value.length;
