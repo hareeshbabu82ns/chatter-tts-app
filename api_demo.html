@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatterbox TTS API Demo</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #555;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      height: 100px;
+      resize: vertical;
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slider-container input[type="range"] {
+      flex: 1;
+    }
+
+    .slider-value {
+      min-width: 60px;
+      text-align: center;
+      background: #f0f0f0;
+      padding: 5px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+
+    .advanced-options {
+      border: 1px solid #eee;
+      padding: 15px;
+      border-radius: 5px;
+      background: #fafafa;
+      margin: 15px 0;
+    }
+
+    .advanced-toggle {
+      background: none;
+      border: none;
+      color: #007bff;
+      cursor: pointer;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .advanced-toggle:hover {
+      text-decoration: underline;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #0056b3;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #545b62;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .audio-output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e8f4f8;
+      border-radius: 5px;
+      border-left: 4px solid #007bff;
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+
+    .status.loading {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .file-info {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>🎤 Chatterbox TTS API Demo</h1>
+
+    <form id="ttsForm">
+      <div class="form-group">
+        <label for="text">Text to Synthesize (max 300 chars):</label>
+        <textarea id="text" name="text" placeholder="Enter the text you want to convert to speech..."
+          maxlength="300">Now let's make my mum's favourite. So three mars bars into the pan. Then we add the tuna and just stir for a bit, just let the chocolate and fish infuse. A sprinkle of olive oil and some tomato ketchup. Now smell that. Oh boy this is going to be incredible.</textarea>
+        <div class="file-info">
+          <span id="charCount">0</span> / 300 characters
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="referenceAudio">Reference Audio (optional, for voice cloning):</label>
+        <input type="file" id="referenceAudio" name="reference_audio" accept="audio/*">
+        <div class="file-info">Upload an audio file to clone its voice characteristics</div>
+      </div>
+
+      <div class="form-group">
+        <label for="exaggeration">Emotion Exaggeration:</label>
+        <div class="slider-container">
+          <input type="range" id="exaggeration" name="exaggeration" min="0.25" max="2.0" step="0.05" value="0.5">
+          <span class="slider-value" id="exaggerationValue">0.5</span>
+        </div>
+        <div class="file-info">0.5 = neutral, higher = more dramatic</div>
+      </div>
+
+      <div class="form-group">
+        <label for="cfgWeight">CFG/Pace:</label>
+        <div class="slider-container">
+          <input type="range" id="cfgWeight" name="cfg_weight" min="0.0" max="1.0" step="0.05" value="0.5">
+          <span class="slider-value" id="cfgWeightValue">0.5</span>
+        </div>
+      </div>
+
+      <button type="button" class="advanced-toggle" onclick="toggleAdvanced()">
+        <span id="advancedText">▶ Show Advanced Options</span>
+      </button>
+
+      <div id="advancedOptions" class="advanced-options hidden">
+        <div class="form-group">
+          <label for="seed">Random Seed (0 for random):</label>
+          <input type="number" id="seed" name="seed" value="0" min="0">
+        </div>
+
+        <div class="form-group">
+          <label for="temperature">Temperature:</label>
+          <div class="slider-container">
+            <input type="range" id="temperature" name="temperature" min="0.05" max="5.0" step="0.05" value="0.8">
+            <span class="slider-value" id="temperatureValue">0.8</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="minP">Min-P:</label>
+          <div class="slider-container">
+            <input type="range" id="minP" name="min_p" min="0.00" max="1.00" step="0.01" value="0.05">
+            <span class="slider-value" id="minPValue">0.05</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="topP">Top-P:</label>
+          <div class="slider-container">
+            <input type="range" id="topP" name="top_p" min="0.00" max="1.00" step="0.01" value="1.00">
+            <span class="slider-value" id="topPValue">1.00</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="repetitionPenalty">Repetition Penalty:</label>
+          <div class="slider-container">
+            <input type="range" id="repetitionPenalty" name="repetition_penalty" min="1.00" max="2.00" step="0.1"
+              value="1.2">
+            <span class="slider-value" id="repetitionPenaltyValue">1.2</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="outputFormat">Output Format:</label>
+          <select id="outputFormat" name="output_format">
+            <option value="wav">WAV (recommended)</option>
+            <option value="mp3">MP3</option>
+            <option value="flac">FLAC</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button type="button" class="btn-primary" onclick="generateAudio('stream')">
+          🎵 Generate & Play
+        </button>
+        <button type="button" class="btn-secondary" onclick="generateAudio('download')">
+          💾 Generate & Download
+        </button>
+      </div>
+    </form>
+
+    <div id="status" class="status hidden"></div>
+
+    <div id="audioOutput" class="audio-output hidden">
+      <h3>Generated Audio:</h3>
+      <audio id="audioPlayer" controls style="width: 100%;"></audio>
+      <div style="margin-top: 10px;">
+        <button type="button" class="btn-secondary" onclick="downloadLastAudio()">
+          💾 Download Audio File
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = 'http://localhost:8000';
+    let lastAudioBlob = null;
+    let lastFileName = 'generated_audio.wav';
+
+    // Update slider values
+    document.querySelectorAll( 'input[type="range"]' ).forEach( slider => {
+      const valueSpan = document.getElementById( slider.id + 'Value' );
+      slider.addEventListener( 'input', function () {
+        valueSpan.textContent = this.value;
+      } );
+    } );
+
+    // Update character count
+    document.getElementById( 'text' ).addEventListener( 'input', function () {
+      document.getElementById( 'charCount' ).textContent = this.value.length;
+    } );
+
+    function toggleAdvanced() {
+      const options = document.getElementById( 'advancedOptions' );
+      const text = document.getElementById( 'advancedText' );
+
+      if ( options.classList.contains( 'hidden' ) ) {
+        options.classList.remove( 'hidden' );
+        text.textContent = '▼ Hide Advanced Options';
+      } else {
+        options.classList.add( 'hidden' );
+        text.textContent = '▶ Show Advanced Options';
+      }
+    }
+
+    function showStatus( message, type ) {
+      const status = document.getElementById( 'status' );
+      status.textContent = message;
+      status.className = `status ${type}`;
+      status.classList.remove( 'hidden' );
+    }
+
+    function hideStatus() {
+      document.getElementById( 'status' ).classList.add( 'hidden' );
+    }
+
+    async function generateAudio( mode ) {
+      const form = document.getElementById( 'ttsForm' );
+      const formData = new FormData();
+
+      // Add all form fields except reference_audio
+      const formElements = form.elements;
+      for ( let i = 0; i < formElements.length; i++ ) {
+        const element = formElements[ i ];
+        if ( element.name && element.name !== 'reference_audio' ) {
+          if ( element.type === 'file' ) {
+            // Skip file inputs that aren't reference_audio
+            continue;
+          } else {
+            formData.append( element.name, element.value );
+          }
+        }
+      }
+
+      // Only add reference_audio if a file is actually selected
+      const referenceAudioInput = document.getElementById( 'referenceAudio' );
+      if ( referenceAudioInput.files.length > 0 ) {
+        formData.append( 'reference_audio', referenceAudioInput.files[ 0 ] );
+      }
+
+      const text = formData.get( 'text' );
+      if ( !text.trim() ) {
+        showStatus( 'Please enter some text to synthesize.', 'error' );
+        return;
+      }
+
+      // Disable buttons
+      document.querySelectorAll( 'button' ).forEach( btn => btn.disabled = true );
+
+      showStatus( 'Generating audio...', 'loading' );
+
+      try {
+        const endpoint = mode === 'stream' ? '/generate/stream' : '/generate';
+        const url = `${API_BASE_URL}${endpoint}`;
+
+        const response = await fetch( url, {
+          method: 'POST',
+          body: formData
+        } );
+
+        if ( !response.ok ) {
+          const errorText = await response.text();
+          throw new Error( `HTTP ${response.status}: ${errorText}` );
+        }
+
+        const blob = await response.blob();
+        lastAudioBlob = blob;
+
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get( 'Content-Disposition' );
+        if ( contentDisposition ) {
+          const match = contentDisposition.match( /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/ );
+          if ( match ) {
+            lastFileName = match[ 1 ].replace( /['"]/g, '' );
+          }
+        }
+
+        // Create audio URL and play
+        const audioUrl = URL.createObjectURL( blob );
+        const audioPlayer = document.getElementById( 'audioPlayer' );
+        audioPlayer.src = audioUrl;
+
+        // Show audio output
+        document.getElementById( 'audioOutput' ).classList.remove( 'hidden' );
+
+        if ( mode === 'stream' ) {
+          audioPlayer.play();
+          showStatus( 'Audio generated and playing!', 'success' );
+        } else {
+          // Trigger download
+          const a = document.createElement( 'a' );
+          a.href = audioUrl;
+          a.download = lastFileName;
+          document.body.appendChild( a );
+          a.click();
+          document.body.removeChild( a );
+          showStatus( 'Audio generated and downloaded!', 'success' );
+        }
+
+      } catch ( error ) {
+        console.error( 'Error generating audio:', error );
+        showStatus( `Error: ${error.message}`, 'error' );
+      } finally {
+        // Re-enable buttons
+        document.querySelectorAll( 'button' ).forEach( btn => btn.disabled = false );
+      }
+    }
+
+    function downloadLastAudio() {
+      if ( lastAudioBlob ) {
+        const url = URL.createObjectURL( lastAudioBlob );
+        const a = document.createElement( 'a' );
+        a.href = url;
+        a.download = lastFileName;
+        document.body.appendChild( a );
+        a.click();
+        document.body.removeChild( a );
+        URL.revokeObjectURL( url );
+      }
+    }
+
+    // Check API availability on load
+    window.addEventListener( 'load', async function () {
+      try {
+        const response = await fetch( `${API_BASE_URL}/health` );
+        if ( response.ok ) {
+          showStatus( 'API is ready!', 'success' );
+          setTimeout( hideStatus, 3000 );
+        } else {
+          showStatus( 'API is not responding properly.', 'error' );
+        }
+      } catch ( error ) {
+        showStatus( 'Cannot connect to API. Make sure the server is running on http://localhost:8000', 'error' );
+      }
+    } );
+
+    // Initialize character count
+    document.getElementById( 'charCount' ).textContent = document.getElementById( 'text' ).value.length;
+  </script>
+</body>
+
+</html>
