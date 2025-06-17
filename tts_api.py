@@ -77,7 +77,10 @@ async def root():
             "model_info": "/model/info - Model information",
             "reference_audio_list": "/reference-audio/list - List reference audio files",
             "reference_audio_upload": "/reference-audio/upload - Upload reference audio file",
-            "reference_audio_delete": "/reference-audio/delete/{filename} - Delete reference audio file"
+            "reference_audio_delete": "/reference-audio/delete/{filename} - Delete reference audio file",
+            "output_audio_list": "/output-audio/list - List generated output audio files",
+            "output_audio_delete": "/output-audio/delete/{filename} - Delete generated output audio file",
+            "output_audio_download": "/output-audio/download/{filename} - Download generated output audio file"
         }
     }
 
@@ -468,6 +471,101 @@ async def delete_reference_audio(filename: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting reference audio: {str(e)}")
+
+@app.get("/output-audio/list")
+async def list_output_audio():
+    """List available generated output audio files"""
+    try:
+        output_files = []
+        if OUTPUT_AUDIO_DIR.exists():
+            for file_path in OUTPUT_AUDIO_DIR.iterdir():
+                if file_path.is_file() and file_path.suffix.lower() in ['.wav', '.mp3', '.flac', '.ogg', '.m4a']:
+                    # Get file info
+                    file_stat = file_path.stat()
+                    output_files.append({
+                        "filename": file_path.name,
+                        "path": str(file_path),
+                        "size": file_stat.st_size,
+                        "modified": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                    })
+        
+        return {
+            "output_files": sorted(output_files, key=lambda x: x["modified"], reverse=True),  # Newest first
+            "count": len(output_files)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing output audio files: {str(e)}")
+
+@app.delete("/output-audio/delete/{filename}")
+async def delete_output_audio(filename: str):
+    """Delete a generated output audio file"""
+    try:
+        # Validate filename to prevent path traversal attacks
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        file_path = OUTPUT_AUDIO_DIR / filename
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"Output audio file not found: {filename}")
+        
+        if not file_path.is_file():
+            raise HTTPException(status_code=400, detail="Not a valid file")
+        
+        # Delete the file
+        file_path.unlink()
+        
+        return {
+            "message": "Output audio deleted successfully",
+            "filename": filename
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting output audio: {str(e)}")
+
+@app.get("/output-audio/download/{filename}")
+async def download_output_audio(filename: str):
+    """Download a generated output audio file"""
+    try:
+        # Validate filename to prevent path traversal attacks
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        file_path = OUTPUT_AUDIO_DIR / filename
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"Output audio file not found: {filename}")
+        
+        if not file_path.is_file():
+            raise HTTPException(status_code=400, detail="Not a valid file")
+        
+        # Determine media type based on file extension
+        extension = file_path.suffix.lower()
+        if extension == '.mp3':
+            media_type = "audio/mpeg"
+        elif extension == '.flac':
+            media_type = "audio/flac"
+        elif extension == '.ogg':
+            media_type = "audio/ogg"
+        else:  # Default to WAV
+            media_type = "audio/wav"
+        
+        # Read and return file
+        with open(file_path, "rb") as f:
+            content = f.read()
+        
+        return StreamingResponse(
+            io.BytesIO(content),
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error downloading output audio: {str(e)}")
 
 # Helper function for robust audio handling
 async def save_uploaded_audio(reference_audio: UploadFile) -> str:

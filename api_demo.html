@@ -174,6 +174,81 @@
       color: #666;
       margin-top: 5px;
     }
+
+    .audio-file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+      margin: 5px 0;
+      background: #f8f9fa;
+      border-radius: 5px;
+      border: 1px solid #e9ecef;
+    }
+
+    .audio-file-info {
+      flex: 1;
+      margin-right: 10px;
+    }
+
+    .audio-file-name {
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 2px;
+    }
+
+    .audio-file-meta {
+      font-size: 11px;
+      color: #666;
+    }
+
+    .audio-file-actions {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .btn-small {
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 3px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-play {
+      background: #28a745;
+      color: white;
+    }
+
+    .btn-play:hover {
+      background: #218838;
+    }
+
+    .btn-download {
+      background: #17a2b8;
+      color: white;
+    }
+
+    .btn-download:hover {
+      background: #138496;
+    }
+
+    .btn-delete {
+      background: #dc3545;
+      color: white;
+    }
+
+    .btn-delete:hover {
+      background: #c82333;
+    }
+
+    .empty-library {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+      font-style: italic;
+    }
   </style>
 </head>
 
@@ -309,6 +384,21 @@
         </button>
       </div>
     </div>
+
+    <!-- Generated Audio Files Library -->
+    <div id="audioLibrary" class="audio-output" style="margin-top: 30px;">
+      <h3>📁 Generated Audio Library</h3>
+      <div style="margin-bottom: 15px;">
+        <button type="button" class="btn-secondary" onclick="loadOutputAudioFiles()"
+          style="font-size: 12px; padding: 5px 10px;">
+          🔄 Refresh List
+        </button>
+        <span id="audioLibraryCount" style="margin-left: 10px; color: #666; font-size: 12px;"></span>
+      </div>
+      <div id="audioFilesList">
+        <!-- Audio files will be loaded here -->
+      </div>
+    </div>
   </div>
 
   <script>
@@ -441,6 +531,9 @@
           showStatus( 'Audio generated and downloaded!', 'success' );
         }
 
+        // Refresh the output audio library
+        await loadOutputAudioFiles();
+
       } catch ( error ) {
         console.error( 'Error generating audio:', error );
         showStatus( `Error: ${error.message}`, 'error' );
@@ -472,6 +565,8 @@
           setTimeout( hideStatus, 3000 );
           // Load reference audio files
           await loadReferenceAudioFiles();
+          // Load output audio files
+          await loadOutputAudioFiles();
         } else {
           showStatus( 'API is not responding properly.', 'error' );
         }
@@ -593,6 +688,130 @@
 
     // Initialize character count
     document.getElementById( 'charCount' ).textContent = document.getElementById( 'text' ).value.length;
+
+    // Load output audio files
+    async function loadOutputAudioFiles() {
+      try {
+        const response = await fetch( `${API_BASE_URL}/output-audio/list` );
+        if ( response.ok ) {
+          const data = await response.json();
+          const container = document.getElementById( 'audioFilesList' );
+          const countSpan = document.getElementById( 'audioLibraryCount' );
+
+          countSpan.textContent = `(${data.count} files)`;
+
+          if ( data.count === 0 ) {
+            container.innerHTML = '<div class="empty-library">No generated audio files yet. Generate some audio to see them here!</div>';
+            return;
+          }
+
+          container.innerHTML = '';
+
+          data.output_files.forEach( file => {
+            const fileItem = document.createElement( 'div' );
+            fileItem.className = 'audio-file-item';
+
+            const fileDate = new Date( file.modified ).toLocaleString();
+
+            fileItem.innerHTML = `
+              <div class="audio-file-info">
+                <div class="audio-file-name">${file.filename}</div>
+                <div class="audio-file-meta">${formatFileSize( file.size )} • ${fileDate}</div>
+              </div>
+              <div class="audio-file-actions">
+                <button class="btn-small btn-play" onclick="playOutputAudio('${file.filename}')" title="Play">
+                  ▶️
+                </button>
+                <button class="btn-small btn-download" onclick="downloadOutputAudio('${file.filename}')" title="Download">
+                  💾
+                </button>
+                <button class="btn-small btn-delete" onclick="deleteOutputAudio('${file.filename}')" title="Delete">
+                  🗑️
+                </button>
+              </div>
+            `;
+
+            container.appendChild( fileItem );
+          } );
+        }
+      } catch ( error ) {
+        console.error( 'Error loading output audio files:', error );
+        document.getElementById( 'audioFilesList' ).innerHTML = '<div class="empty-library">Error loading audio files.</div>';
+      }
+    }
+
+    // Play output audio file
+    async function playOutputAudio( filename ) {
+      try {
+        const response = await fetch( `${API_BASE_URL}/output-audio/download/${encodeURIComponent( filename )}` );
+        if ( response.ok ) {
+          const blob = await response.blob();
+          const audioUrl = URL.createObjectURL( blob );
+          const audioPlayer = document.getElementById( 'audioPlayer' );
+          audioPlayer.src = audioUrl;
+          audioPlayer.play();
+
+          // Show audio output section
+          document.getElementById( 'audioOutput' ).classList.remove( 'hidden' );
+
+          showStatus( `Playing: ${filename}`, 'success' );
+          setTimeout( hideStatus, 2000 );
+        } else {
+          throw new Error( `Failed to load audio file: ${response.statusText}` );
+        }
+      } catch ( error ) {
+        console.error( 'Error playing audio:', error );
+        showStatus( `Error playing audio: ${error.message}`, 'error' );
+      }
+    }
+
+    // Download output audio file
+    async function downloadOutputAudio( filename ) {
+      try {
+        const url = `${API_BASE_URL}/output-audio/download/${encodeURIComponent( filename )}`;
+        const a = document.createElement( 'a' );
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild( a );
+        a.click();
+        document.body.removeChild( a );
+
+        showStatus( `Downloading: ${filename}`, 'success' );
+        setTimeout( hideStatus, 2000 );
+      } catch ( error ) {
+        console.error( 'Error downloading audio:', error );
+        showStatus( `Error downloading audio: ${error.message}`, 'error' );
+      }
+    }
+
+    // Delete output audio file
+    async function deleteOutputAudio( filename ) {
+      if ( !confirm( `Are you sure you want to delete "${filename}"? This action cannot be undone.` ) ) {
+        return;
+      }
+
+      try {
+        showStatus( 'Deleting audio file...', 'loading' );
+
+        const response = await fetch( `${API_BASE_URL}/output-audio/delete/${encodeURIComponent( filename )}`, {
+          method: 'DELETE'
+        } );
+
+        if ( response.ok ) {
+          showStatus( `Audio file deleted: ${filename}`, 'success' );
+          setTimeout( hideStatus, 2000 );
+
+          // Reload output audio list
+          await loadOutputAudioFiles();
+        } else {
+          const errorText = await response.text();
+          throw new Error( `HTTP ${response.status}: ${errorText}` );
+        }
+      } catch ( error ) {
+        console.error( 'Error deleting audio file:', error );
+        showStatus( `Error deleting audio file: ${error.message}`, 'error' );
+      }
+    }
   </script>
 </body>
 
