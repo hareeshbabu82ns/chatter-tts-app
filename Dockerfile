@@ -1,11 +1,17 @@
-# Use Python 3.10 slim image for smaller size
-FROM python:3.10-slim
+# Use Python 3.12 slim image for smaller size
+FROM python:3.12-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
   PYTHONDONTWRITEBYTECODE=1 \
   PIP_NO_CACHE_DIR=1 \
-  PIP_DISABLE_PIP_VERSION_CHECK=1
+  PIP_DISABLE_PIP_VERSION_CHECK=1 \
+  NUMBA_CACHE_DIR=/tmp/numba_cache \
+  NUMBA_DISABLE_JIT=0 \
+  TRANSFORMERS_CACHE=/tmp/transformers_cache \
+  HF_HOME=/tmp/transformers_cache \
+  HF_HUB_CACHE=/tmp/transformers_cache \
+  PYTHONWARNINGS="ignore::UserWarning"
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -16,8 +22,8 @@ RUN apt-get update && apt-get install -y \
   curl \
   && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user for security with home directory
+RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
 
 # Set working directory
 WORKDIR /app
@@ -27,8 +33,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories and set permissions
-RUN mkdir -p /app/data/ref /app/data/samples /app/data/generated && \
-  chown -R appuser:appuser /app
+RUN mkdir -p /app/data/ref /app/data/samples /app/data/out /tmp/numba_cache /tmp/transformers_cache /home/appuser/.cache/huggingface && \
+  chown -R appuser:appuser /app /tmp/numba_cache /tmp/transformers_cache /home/appuser
 
 # Copy application code
 COPY --chown=appuser:appuser . .

@@ -12,10 +12,25 @@ import soundfile as sf
 from pathlib import Path
 import shutil
 from datetime import datetime
+import logging
+import sys
+import time
+import signal
+import threading
 
 from chatterbox.tts import ChatterboxTTS
 
 app = FastAPI(title="Chatterbox TTS API", version="1.0.0")
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Add CORS middleware
 app.add_middleware(
@@ -30,6 +45,16 @@ app.add_middleware(
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 model = None
 
+# Initialize logging early
+logger.info("🔧 System Information:")
+logger.info(f"🐍 Python: {sys.version}")
+logger.info(f"🔥 PyTorch: {torch.__version__}")
+logger.info(f"🎯 CUDA Available: {torch.cuda.is_available()}")
+logger.info(f"📱 Selected Device: {DEVICE}")
+if torch.cuda.is_available():
+    logger.info(f"🎮 GPU: {torch.cuda.get_device_name(0)}")
+    logger.info(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+
 # Data directories
 DATA_DIR = Path("./data")
 REF_AUDIO_DIR = DATA_DIR / "ref"
@@ -37,8 +62,11 @@ OUTPUT_AUDIO_DIR = DATA_DIR / "out"
 
 def ensure_directories():
     """Create data directories if they don't exist"""
+    logger.info(f"📁 Creating directory: {REF_AUDIO_DIR}")
     REF_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info(f"📁 Creating directory: {OUTPUT_AUDIO_DIR}")
     OUTPUT_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info("📁 All directories ready")
 
 def set_seed(seed: int):
     """Set random seed for reproducibility"""
@@ -48,18 +76,110 @@ def set_seed(seed: int):
     random.seed(seed)
     np.random.seed(seed)
 
+def load_model_with_timeout(timeout_seconds=300):
+    """Load the TTS model with timeout handling"""
+    logger.info("🔄 Starting model loading with timeout...")
+    
+    result = {'model': None, 'error': None, 'completed': False}
+    
+    def model_loader():
+        try:
+            logger.info(f"📱 Device: {DEVICE}")
+            logger.info("🌐 Checking internet connectivity...")
+            
+            # Test internet connection
+            import urllib.request
+            try:
+                urllib.request.urlopen('https://huggingface.co', timeout=10)
+                logger.info("✅ Internet connectivity confirmed")
+            except Exception as e:
+                logger.error(f"❌ Internet connectivity issue: {e}")
+                result['error'] = f"Internet connectivity issue: {e}"
+                return
+            
+            logger.info("⬇️ Starting model download/loading from Hugging Face...")
+            logger.info("📦 This may take several minutes for first-time download...")
+            
+            # Log environment info
+            logger.info(f"� Python executable: {sys.executable}")
+            logger.info(f"🔧 PyTorch version: {torch.__version__}")
+            logger.info(f"🎯 CUDA available: {torch.cuda.is_available()}")
+            if torch.cuda.is_available():
+                logger.info(f"🎮 CUDA device: {torch.cuda.get_device_name(0)}")
+            
+            start_time = time.time()
+            model = ChatterboxTTS.from_pretrained(DEVICE)
+            load_time = time.time() - start_time
+            
+            logger.info(f"✅ Model loaded successfully in {load_time:.1f} seconds!")
+            result['model'] = model
+            result['completed'] = True
+            
+        except Exception as e:
+            logger.error(f"❌ Model loading failed: {e}")
+            result['error'] = str(e)
+    
+    # Start model loading in a separate thread
+    thread = threading.Thread(target=model_loader)
+    thread.daemon = True
+    thread.start()
+    
+    # Wait for completion or timeout
+    start_time = time.time()
+    while thread.is_alive() and (time.time() - start_time) < timeout_seconds:
+        elapsed = time.time() - start_time
+        if elapsed % 30 < 1:  # Log every 30 seconds
+            logger.info(f"⏳ Model loading in progress... {elapsed:.0f}s elapsed (timeout: {timeout_seconds}s)")
+        time.sleep(1)
+    
+    if thread.is_alive():
+        logger.error(f"⏰ Model loading timed out after {timeout_seconds} seconds")
+        return None, f"Model loading timed out after {timeout_seconds} seconds"
+    
+    if result['error']:
+        return None, result['error']
+    
+    return result['model'], None
+
 def load_model():
     """Load the TTS model"""
     global model
     if model is None:
-        model = ChatterboxTTS.from_pretrained(DEVICE)
+        logger.info("🚀 Initializing model loading...")
+        model, error = load_model_with_timeout(timeout_seconds=600)  # 10 minute timeout
+        if error:
+            logger.error(f"❌ Failed to load model: {error}")
+            raise RuntimeError(f"Model loading failed: {error}")
+        logger.info("✅ Model successfully initialized!")
     return model
 
 @app.on_event("startup")
 async def startup_event():
     """Load model and create directories on startup"""
-    ensure_directories()
-    load_model()
+    logger.info("🚀 ========================================")
+    logger.info("🚀 Starting Chatterbox TTS API...")
+    logger.info("🚀 ========================================")
+    
+    try:
+        logger.info("📁 Step 1/2: Creating data directories...")
+        ensure_directories()
+        logger.info("✅ Directories created successfully")
+        
+        logger.info("🤖 Step 2/2: Loading TTS model...")
+        logger.info("⚠️  This step may take several minutes on first run...")
+        
+        load_model()
+        
+        logger.info("✅ ========================================")
+        logger.info("✅ Startup completed successfully!")
+        logger.info("✅ API is ready to receive requests")
+        logger.info("✅ ========================================")
+        
+    except Exception as e:
+        logger.error("❌ ========================================")
+        logger.error(f"❌ Startup failed: {e}")
+        logger.error("❌ ========================================")
+        raise
 
 @app.get("/")
 async def root():
@@ -615,12 +735,19 @@ async def save_uploaded_audio(reference_audio: UploadFile) -> str:
 if __name__ == "__main__":
     import argparse
     
+    logger.info("🚀 ========================================")
+    logger.info("🚀 Chatterbox TTS API Server Starting...")
+    logger.info("🚀 ========================================")
+    
     parser = argparse.ArgumentParser(description="Chatterbox TTS REST API Server")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
     
     args = parser.parse_args()
+    
+    logger.info(f"🌐 Starting server on {args.host}:{args.port}")
+    logger.info(f"🔄 Auto-reload: {args.reload}")
     
     uvicorn.run(
         "tts_api:app" if not args.reload else "tts_api:app",

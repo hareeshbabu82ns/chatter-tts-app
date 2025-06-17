@@ -1,5 +1,8 @@
 chatterbox-tts>=0.1.2
 
+# Fix for pkg_resources deprecation warning
+setuptools<81
+
 # FastAPI and server dependencies
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
