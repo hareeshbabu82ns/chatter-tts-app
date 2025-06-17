@@ -306,6 +306,35 @@ docker build -t chatterbox-api .
 docker run -p 8000:8000 chatterbox-api
 ```
 
+## Release
+
+- using make
+```sh
+# Increment patch version (most common)
+make version-patch
+
+# Increment minor version (new features)
+make version-minor
+
+# Increment major version (breaking changes)
+make version-major
+
+# Check current version
+make version-show
+```
+
+- direct
+```sh
+# Basic increment
+./version.sh patch
+
+# Skip git status check (if you have uncommitted changes)
+./version.sh patch --force
+
+# Get help
+./version.sh --help
+```
+
 ## License
 
 Same as the Chatterbox TTS model (MIT License).
