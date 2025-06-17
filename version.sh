@@ -97,10 +97,13 @@ save_version() {
     print_info "Version $version saved to $VERSION_FILE"
 }
 
-# Function to check if git repo is clean
+# Function to check if git repo is clean (excluding .version file)
 check_git_status() {
-    if [[ -n $(git status --porcelain) ]]; then
-        print_error "Git repository has uncommitted changes. Please commit or stash them first."
+    local status_output=$(git status --porcelain | grep -v "^[AM] .version$")
+    if [[ -n $status_output ]]; then
+        print_error "Git repository has uncommitted changes (excluding .version file). Please commit or stash them first."
+        echo "Uncommitted changes:"
+        echo "$status_output"
         exit 1
     fi
 }
@@ -109,6 +112,36 @@ check_git_status() {
 create_and_push_tag() {
     local version=$1
     local tag="v$version"
+    local current_branch=$(git rev-parse --abbrev-ref HEAD)
+    
+    # First, commit the version file if it has changes
+    if git diff --name-only | grep -q "^.version$" || git diff --staged --name-only | grep -q "^.version$"; then
+        print_info "Committing .version file..."
+        git add .version
+        git commit -m "Update version to $version"
+    fi
+    
+    # Check if there are any commits to push
+    local commits_ahead=0
+    if git rev-parse --verify "origin/$current_branch" >/dev/null 2>&1; then
+        commits_ahead=$(git rev-list --count "origin/$current_branch..$current_branch" 2>/dev/null || echo "0")
+    else
+        # Remote branch doesn't exist, so we have all local commits to push
+        commits_ahead=$(git rev-list --count "$current_branch" 2>/dev/null || echo "0")
+    fi
+    
+    # Push any pending commits to ensure the branch is up to date
+    if [[ $commits_ahead -gt 0 ]]; then
+        print_info "Pushing $commits_ahead commit(s) to origin/$current_branch..."
+        if git rev-parse --verify "origin/$current_branch" >/dev/null 2>&1; then
+            git push origin "$current_branch"
+        else
+            print_info "Remote branch doesn't exist, creating it..."
+            git push -u origin "$current_branch"
+        fi
+    else
+        print_info "Branch $current_branch is up to date with origin"
+    fi
     
     print_info "Creating git tag: $tag"
     git tag -a "$tag" -m "Release version $version"
@@ -117,6 +150,7 @@ create_and_push_tag() {
     git push origin "$tag"
     
     print_success "Tag $tag created and pushed successfully!"
+    print_info "GitHub Actions should trigger automatically for tag $tag"
 }
 
 # Main function
