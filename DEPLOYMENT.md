@@ -40,12 +40,13 @@ You can customize the deployment using environment variables:
 ```bash
 # Create a .env file
 echo "PYTHONUNBUFFERED=1" > .env
-echo "TORCH_DEVICE=cuda" >> .env  # or 'cpu'
+echo "TORCH_DEVICE=cuda" >> .env  # or 'mps' for Apple Silicon, or 'cpu'
 ```
 
 ### Volume Mounts
 
 The application uses volumes for persistent data:
+
 - `./data:/app/data` - Audio files and generated content
 
 ## 🏗️ GitHub Actions CI/CD
@@ -115,6 +116,7 @@ When you create a release, the GitHub Actions workflow will:
 ### 📋 Image Tags
 
 Your Docker images will be available with the following tags:
+
 - `hareeshbabu82ns/chatter-tts-app:v1.0.0` (exact version)
 - `hareeshbabu82ns/chatter-tts-app:1.0.0` (semantic version)
 - `hareeshbabu82ns/chatter-tts-app:1.0` (minor version)
@@ -140,7 +142,7 @@ docker run -d \
 ### Docker Compose with Published Image
 
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   chatter-tts:
     image: hareeshbabu82ns/chatter-tts-app:v1.0.0
@@ -196,6 +198,7 @@ docker inspect chatter-tts | grep Health -A 10
 ## 📞 Support
 
 For issues and questions:
+
 1. Check the [GitHub Issues](https://github.com/hareeshbabu82ns/chatter-tts-app/issues)
 2. Review the application logs
 3. Ensure all prerequisites are met

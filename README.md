@@ -15,6 +15,7 @@ A simple REST API for the Chatterbox TTS model that provides all the functionali
 ## Installation
 
 1. Install the required dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -30,6 +31,7 @@ python tts_api.py
 ```
 
 Or with custom options:
+
 ```bash
 python tts_api.py --host 0.0.0.0 --port 8000 --reload
 ```
@@ -39,6 +41,7 @@ The API will be available at `http://localhost:8000` by default.
 ## API Endpoints
 
 ### Health Check
+
 - **GET** `/health` - Check if the API and model are ready
 - **GET** `/` - Get API information and available endpoints
 - **GET** `/model/info` - Get model-specific information
@@ -46,11 +49,13 @@ The API will be available at `http://localhost:8000` by default.
 ### Text-to-Speech Generation
 
 #### 1. Generate Audio File
+
 **POST** `/generate`
 
 Generate TTS audio and return as a downloadable file.
 
 **Parameters:**
+
 - `text` (required): Text to synthesize (max 300 chars)
 - `reference_audio` (optional): Reference audio file for voice cloning
 - `exaggeration` (optional): Emotion exaggeration (0.25-2.0, default: 0.5)
@@ -65,6 +70,7 @@ Generate TTS audio and return as a downloadable file.
 **Response:** Audio file download
 
 #### 2. Stream Audio
+
 **POST** `/generate/stream`
 
 Generate TTS audio and stream it directly.
@@ -74,6 +80,7 @@ Generate TTS audio and stream it directly.
 **Response:** Streamed audio data
 
 #### 3. JSON Response
+
 **POST** `/generate/json`
 
 Generate TTS audio and return as base64-encoded JSON.
@@ -81,6 +88,7 @@ Generate TTS audio and return as base64-encoded JSON.
 **Parameters:** Same as `/generate` (except `output_format`)
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -101,6 +109,7 @@ Generate TTS audio and return as base64-encoded JSON.
 ### cURL Examples
 
 #### Basic generation:
+
 ```bash
 curl -X POST "http://localhost:8000/generate" \
      -F "text=Hello, this is a test!" \
@@ -109,6 +118,7 @@ curl -X POST "http://localhost:8000/generate" \
 ```
 
 #### With reference audio:
+
 ```bash
 curl -X POST "http://localhost:8000/generate" \
      -F "text=Clone this voice!" \
@@ -118,6 +128,7 @@ curl -X POST "http://localhost:8000/generate" \
 ```
 
 #### JSON response:
+
 ```bash
 curl -X POST "http://localhost:8000/generate/json" \
      -F "text=Return as JSON" \
@@ -129,6 +140,7 @@ curl -X POST "http://localhost:8000/generate/json" \
 See `api_client_example.py` for comprehensive Python examples.
 
 #### Basic usage:
+
 ```python
 import requests
 
@@ -146,6 +158,7 @@ with open("output.wav", "wb") as f:
 ```
 
 #### With reference audio:
+
 ```python
 with open("reference.wav", "rb") as audio_file:
     response = requests.post(
@@ -158,78 +171,92 @@ with open("reference.wav", "rb") as audio_file:
 ### JavaScript/Web Examples
 
 #### Using Fetch API:
+
 ```javascript
 const formData = new FormData();
-formData.append('text', 'Hello from JavaScript!');
-formData.append('exaggeration', '0.7');
+formData.append("text", "Hello from JavaScript!");
+formData.append("exaggeration", "0.7");
 
-fetch('http://localhost:8000/generate', {
-    method: 'POST',
-    body: formData
+fetch("http://localhost:8000/generate", {
+  method: "POST",
+  body: formData,
 })
-.then(response => response.blob())
-.then(blob => {
+  .then((response) => response.blob())
+  .then((blob) => {
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audio.play();
-});
+  });
 ```
 
 #### With file upload:
+
 ```javascript
-const fileInput = document.getElementById('audioFile');
+const fileInput = document.getElementById("audioFile");
 const file = fileInput.files[0];
 
 const formData = new FormData();
-formData.append('text', 'Clone this voice!');
-formData.append('reference_audio', file);
+formData.append("text", "Clone this voice!");
+formData.append("reference_audio", file);
 
-fetch('http://localhost:8000/generate', {
-    method: 'POST',
-    body: formData
+fetch("http://localhost:8000/generate", {
+  method: "POST",
+  body: formData,
 })
-.then(response => response.blob())
-.then(blob => {
+  .then((response) => response.blob())
+  .then((blob) => {
     // Handle the generated audio
-});
+  });
 ```
 
 ## Parameter Guide
 
 ### Exaggeration (0.25 - 2.0)
+
 Controls emotional expression in the voice:
+
 - `0.25-0.4`: Subdued, calm
 - `0.5`: Neutral (default)
 - `0.8-1.2`: Expressive
 - `1.5-2.0`: Very dramatic (may be unstable)
 
 ### Temperature (0.05 - 5.0)
+
 Controls randomness in generation:
+
 - `0.1-0.5`: Very consistent, less natural
 - `0.8`: Balanced (default)
 - `1.5-3.0`: More varied, creative
 - `3.0+`: Very random, potentially incoherent
 
 ### CFG Weight (0.0 - 1.0)
+
 Controls adherence to text vs. audio style:
+
 - `0.0`: Ignore text guidance
 - `0.5`: Balanced (default)
 - `1.0`: Strong text adherence
 
 ### Min-P (0.0 - 1.0)
+
 Modern sampling technique:
+
 - `0.0`: Disabled
 - `0.02-0.1`: Recommended range
 - Higher values: More conservative sampling
 
 ### Top-P (0.0 - 1.0)
+
 Classical nucleus sampling:
+
 - `1.0`: Disabled (recommended)
 - `0.8`: Traditional setting
 - Lower values: More conservative
 
 ### Repetition Penalty (1.0 - 2.0)
+
 Reduces repetitive speech:
+
 - `1.0`: No penalty
 - `1.2`: Moderate (default)
 - `1.5+`: Strong penalty
@@ -243,13 +270,15 @@ Reduces repetitive speech:
 ## Performance Notes
 
 - First request may be slower due to model loading
-- GPU acceleration is used if available
+- GPU acceleration is used automatically (CUDA for NVIDIA GPUs, MPS for Apple Silicon)
+- Fallback to CPU if GPU acceleration is not available
 - Model is loaded once and reused for subsequent requests
 - Temporary files for uploads are cleaned up automatically
 
 ## Error Handling
 
 The API returns appropriate HTTP status codes:
+
 - `200`: Success
 - `400`: Bad request (invalid parameters)
 - `422`: Validation error
@@ -257,6 +286,7 @@ The API returns appropriate HTTP status codes:
 - `503`: Service unavailable (model not loaded)
 
 Error responses include details in JSON format:
+
 ```json
 {
   "detail": "Error description"
@@ -266,6 +296,7 @@ Error responses include details in JSON format:
 ## Development
 
 Run with auto-reload for development:
+
 ```bash
 python tts_api.py --reload
 ```
@@ -275,6 +306,7 @@ View API documentation at: `http://localhost:8000/docs` (automatic FastAPI docs)
 ## Testing
 
 Run the test client to verify all functionality:
+
 ```bash
 python api_client_example.py
 ```
@@ -301,6 +333,7 @@ CMD ["python", "tts_api.py", "--host", "0.0.0.0"]
 ```
 
 Build and run:
+
 ```bash
 docker build -t chatterbox-api .
 docker run -p 8000:8000 chatterbox-api
@@ -309,6 +342,7 @@ docker run -p 8000:8000 chatterbox-api
 ## Release
 
 - using make
+
 ```sh
 # Increment patch version (most common)
 make version-patch
@@ -324,6 +358,7 @@ make version-show
 ```
 
 - direct
+
 ```sh
 # Basic increment
 ./version.sh patch

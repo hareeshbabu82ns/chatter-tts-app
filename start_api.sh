@@ -19,16 +19,35 @@ if [[ ! -f "tts_api.py" ]]; then
     exit 1
 fi
 
-# Create virtual environment if it doesn't exist
-VENV_DIR=".venv"
-if [[ ! -d "$VENV_DIR" ]]; then
-    echo -e "${YELLOW}Creating virtual environment...${NC}"
-    python3 -m venv "$VENV_DIR"
+# Check if conda is available
+if command -v conda >/dev/null 2>&1; then
+    echo -e "${GREEN}Conda detected! Using conda environment...${NC}"
+    
+    # Check if chatterbox environment exists
+    if ! conda env list | grep -q "^chatterbox "; then
+        echo -e "${YELLOW}Creating conda environment 'chatterbox'...${NC}"
+        conda create -n chatterbox python=3.12 -y
+    fi
+    
+    # Activate conda environment
+    echo -e "${YELLOW}Activating conda environment 'chatterbox'...${NC}"
+    eval "$(conda shell.bash hook)"
+    conda activate chatterbox
+    
+else
+    echo -e "${YELLOW}Conda not found. Using virtual environment instead...${NC}"
+    
+    # Create virtual environment if it doesn't exist
+    VENV_DIR=".venv"
+    if [[ ! -d "$VENV_DIR" ]]; then
+        echo -e "${YELLOW}Creating virtual environment...${NC}"
+        python3 -m venv "$VENV_DIR"
+    fi
+    
+    # Activate virtual environment
+    echo -e "${YELLOW}Activating virtual environment...${NC}"
+    source "$VENV_DIR/bin/activate"
 fi
-
-# Activate virtual environment
-echo -e "${YELLOW}Activating virtual environment...${NC}"
-source "$VENV_DIR/bin/activate"
 
 # Upgrade pip
 pip install --upgrade pip
@@ -47,7 +66,7 @@ fi
 echo -e "${GREEN}Starting Chatterbox TTS API server...${NC}"
 echo "API will be available at: http://localhost:8000"
 echo "API documentation: http://localhost:8000/docs"
-echo "Demo page: Open api_demo.html in your browser"
+echo "Demo page: Open http://localhost:8000/docs/api_demo.html in your browser"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""

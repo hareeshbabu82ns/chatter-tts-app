@@ -42,7 +42,59 @@ app.add_middleware(
 )
 
 # Global variables
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# Device detection with priority: ENV_VAR > CUDA > MPS > CPU
+def detect_device():
+    """Detect the best available device with proper error handling"""
+    # Check for environment variable override
+    env_device = os.environ.get('TORCH_DEVICE', '').lower()
+    if env_device in ['cuda', 'mps', 'cpu']:
+        logger.info(f"🔧 Device override from environment: {env_device}")
+        
+        # Validate the requested device is actually available
+        if env_device == 'cuda':
+            if not torch.cuda.is_available():
+                logger.warning(f"⚠️ CUDA requested but not available, falling back to auto-detection")
+            else:
+                try:
+                    torch.cuda.get_device_name(0)
+                    return "cuda"
+                except Exception as e:
+                    logger.warning(f"⚠️ CUDA requested but not accessible: {e}")
+        
+        elif env_device == 'mps':
+            if not torch.backends.mps.is_available():
+                logger.warning(f"⚠️ MPS requested but not available, falling back to auto-detection")
+            else:
+                try:
+                    test_tensor = torch.randn(1).to("mps")
+                    return "mps"
+                except Exception as e:
+                    logger.warning(f"⚠️ MPS requested but not accessible: {e}")
+        
+        elif env_device == 'cpu':
+            return "cpu"
+    
+    # Auto-detection if no valid environment override
+    try:
+        if torch.cuda.is_available():
+            # Verify CUDA device is actually accessible
+            torch.cuda.get_device_name(0)
+            return "cuda"
+    except Exception as e:
+        logger.warning(f"⚠️ CUDA detected but not accessible: {e}")
+    
+    try:
+        if torch.backends.mps.is_available():
+            # Verify MPS is actually usable
+            test_tensor = torch.randn(1).to("mps")
+            return "mps"
+    except Exception as e:
+        logger.warning(f"⚠️ MPS detected but not accessible: {e}")
+    
+    logger.info("💻 Falling back to CPU device")
+    return "cpu"
+
+DEVICE = detect_device()
 model = None
 
 # Initialize logging early
@@ -50,10 +102,14 @@ logger.info("🔧 System Information:")
 logger.info(f"🐍 Python: {sys.version}")
 logger.info(f"🔥 PyTorch: {torch.__version__}")
 logger.info(f"🎯 CUDA Available: {torch.cuda.is_available()}")
+logger.info(f"🍎 MPS Available: {torch.backends.mps.is_available()}")
 logger.info(f"📱 Selected Device: {DEVICE}")
 if torch.cuda.is_available():
     logger.info(f"🎮 GPU: {torch.cuda.get_device_name(0)}")
     logger.info(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+elif torch.backends.mps.is_available():
+    logger.info(f"🍎 MPS Device: Apple Silicon GPU")
+    logger.info(f"💾 MPS Memory Management: Unified Memory Architecture")
 
 # Data directories
 DATA_DIR = Path("./data")
@@ -71,10 +127,16 @@ def ensure_directories():
 def set_seed(seed: int):
     """Set random seed for reproducibility"""
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    random.seed(seed)
     np.random.seed(seed)
+    random.seed(seed)
+    
+    # Set device-specific seeds
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    
+    # MPS doesn't have a separate manual_seed function as of PyTorch 2.x
+    # The torch.manual_seed should handle MPS devices
 
 def load_model_with_timeout(timeout_seconds=300):
     """Load the TTS model with timeout handling"""
@@ -101,11 +163,14 @@ def load_model_with_timeout(timeout_seconds=300):
             logger.info("📦 This may take several minutes for first-time download...")
             
             # Log environment info
-            logger.info(f"� Python executable: {sys.executable}")
+            logger.info(f"🔧 Python executable: {sys.executable}")
             logger.info(f"🔧 PyTorch version: {torch.__version__}")
             logger.info(f"🎯 CUDA available: {torch.cuda.is_available()}")
-            if torch.cuda.is_available():
+            logger.info(f"🍎 MPS available: {torch.backends.mps.is_available()}")
+            if torch.cuda.is_available() and DEVICE == "cuda":
                 logger.info(f"🎮 CUDA device: {torch.cuda.get_device_name(0)}")
+            elif torch.backends.mps.is_available() and DEVICE == "mps":
+                logger.info(f"🍎 MPS device: Apple Silicon GPU")
             
             start_time = time.time()
             model = ChatterboxTTS.from_pretrained(DEVICE)
