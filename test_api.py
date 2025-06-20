@@ -15,7 +15,7 @@ def ensure_test_directories():
 
 def test_api():
     """Test the basic functionality of the TTS API"""
-    base_url = "http://localhost:8000"
+    base_url = "http://localhost:8000/api"
     
     # Ensure test directories exist
     ensure_test_directories()

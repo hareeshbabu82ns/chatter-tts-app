@@ -255,16 +255,16 @@ async def root():
         "device": DEVICE,
         "endpoints": {
             "demo": "/api_demo.html - Interactive API demo page",
-            "generate": "/generate - Generate TTS audio",
-            "generate_stream": "/generate/stream - Generate and stream TTS audio",
-            "health": "/health - Health check",
-            "model_info": "/model/info - Model information",
-            "reference_audio_list": "/reference-audio/list - List reference audio files",
-            "reference_audio_upload": "/reference-audio/upload - Upload reference audio file",
-            "reference_audio_delete": "/reference-audio/delete/{filename} - Delete reference audio file",
-            "output_audio_list": "/output-audio/list - List generated output audio files",
-            "output_audio_delete": "/output-audio/delete/{filename} - Delete generated output audio file",
-            "output_audio_download": "/output-audio/download/{filename} - Download generated output audio file"
+            "generate": "/api/generate - Generate TTS audio",
+            "generate_stream": "/api/generate/stream - Generate and stream TTS audio",
+            "health": "/api/health - Health check",
+            "model_info": "/api/model/info - Model information",
+            "reference_audio_list": "/api/reference-audio/list - List reference audio files",
+            "reference_audio_upload": "/api/reference-audio/upload - Upload reference audio file",
+            "reference_audio_delete": "/api/reference-audio/delete/{filename} - Delete reference audio file",
+            "output_audio_list": "/api/output-audio/list - List generated output audio files",
+            "output_audio_delete": "/api/output-audio/delete/{filename} - Delete generated output audio file",
+            "output_audio_download": "/api/output-audio/download/{filename} - Download generated output audio file"
         }
     }
 
@@ -280,7 +280,7 @@ async def api_demo():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error serving demo page: {str(e)}")
 
-@app.get("/health")
+@app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
     return {
@@ -289,7 +289,7 @@ async def health_check():
         "model_loaded": model is not None
     }
 
-@app.get("/model/info")
+@app.get("/api/model/info")
 async def model_info():
     """Get model information"""
     global model
@@ -302,7 +302,7 @@ async def model_info():
         "model_type": "ChatterboxTTS"
     }
 
-@app.post("/generate")
+@app.post("/api/generate")
 async def generate_tts(
     text: str = Form(..., description="Text to synthesize (max 300 chars)"),
     reference_audio: Optional[UploadFile] = File(None, description="Reference audio file for voice cloning"),
@@ -402,7 +402,7 @@ async def generate_tts(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating audio: {str(e)}")
 
-@app.post("/generate/stream")
+@app.post("/api/generate/stream")
 async def generate_tts_stream(
     text: str = Form(..., description="Text to synthesize (max 300 chars)"),
     reference_audio: Optional[UploadFile] = File(None, description="Reference audio file for voice cloning"),
@@ -483,7 +483,7 @@ async def generate_tts_stream(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating audio: {str(e)}")
 
-@app.post("/generate/json")
+@app.post("/api/generate/json")
 async def generate_tts_json(
     text: str = Form(..., description="Text to synthesize (max 300 chars)"),
     reference_audio: Optional[UploadFile] = File(None, description="Reference audio file for voice cloning"),
@@ -577,7 +577,7 @@ async def generate_tts_json(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating audio: {str(e)}")
 
-@app.get("/reference-audio/list")
+@app.get("/api/reference-audio/list")
 async def list_reference_audio():
     """List available reference audio files"""
     try:
@@ -601,7 +601,7 @@ async def list_reference_audio():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing reference audio files: {str(e)}")
 
-@app.post("/reference-audio/upload")
+@app.post("/api/reference-audio/upload")
 async def upload_reference_audio(
     file: UploadFile = File(..., description="Reference audio file to upload")
 ):
@@ -639,7 +639,7 @@ async def upload_reference_audio(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading reference audio: {str(e)}")
 
-@app.delete("/reference-audio/delete/{filename}")
+@app.delete("/api/reference-audio/delete/{filename}")
 async def delete_reference_audio(filename: str):
     """Delete a reference audio file"""
     try:
@@ -668,7 +668,7 @@ async def delete_reference_audio(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting reference audio: {str(e)}")
 
-@app.get("/output-audio/list")
+@app.get("/api/output-audio/list")
 async def list_output_audio():
     """List available generated output audio files"""
     try:
@@ -692,7 +692,7 @@ async def list_output_audio():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing output audio files: {str(e)}")
 
-@app.delete("/output-audio/delete/{filename}")
+@app.delete("/api/output-audio/delete/{filename}")
 async def delete_output_audio(filename: str):
     """Delete a generated output audio file"""
     try:
@@ -721,7 +721,7 @@ async def delete_output_audio(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting output audio: {str(e)}")
 
-@app.get("/output-audio/download/{filename}")
+@app.get("/api/output-audio/download/{filename}")
 async def download_output_audio(filename: str):
     """Download a generated output audio file"""
     try:

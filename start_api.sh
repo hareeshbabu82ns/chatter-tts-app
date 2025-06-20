@@ -66,7 +66,7 @@ fi
 echo -e "${GREEN}Starting Chatterbox TTS API server...${NC}"
 echo "API will be available at: http://localhost:8000"
 echo "API documentation: http://localhost:8000/docs"
-echo "Demo page: Open http://localhost:8000/docs/api_demo.html in your browser"
+echo "Demo page: Open http://localhost:8000/api_demo.html in your browser"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""

@@ -69,3 +69,5 @@ docs/
 test_*.py
 *_test.py
 tests/
+.env.*
+.env

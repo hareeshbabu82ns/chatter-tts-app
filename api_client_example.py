@@ -11,7 +11,7 @@ import soundfile as sf
 from pathlib import Path
 
 # API base URL (adjust if running on different host/port)
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "http://localhost:8000/api"
 
 def ensure_test_directories():
     """Create test directories if they don't exist"""
